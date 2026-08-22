@@ -4,10 +4,8 @@ import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import { createJobRunner } from './download-jobs.js';
 import { loadEnv } from './env.js';
-import {
-  mediaFolderById,
-  parseMediaFolderId,
-} from './ytdlp/media-folders.js';
+import { listShares, resolveSharePath } from './shares.js';
+import { sanitizeNasFolderName } from './ytdlp/media-folders.js';
 import { isValidYoutubeVideoId } from './ytdlp/video-extract.js';
 
 const env = loadEnv();
@@ -26,6 +24,13 @@ app.addHook('onRequest', async (request, reply) => {
 });
 
 app.get('/health', async () => ({ ok: true }));
+
+app.get('/v1/shares', async () => {
+  const shares = await listShares(env.sharesRoot);
+  return {
+    shares: shares.map((s) => ({ name: s.name, path: s.path })),
+  };
+});
 
 app.get('/v1/admin/downloads/jobs', async () => ({
   maxParallel: 3,
@@ -50,29 +55,36 @@ app.post<{ Params: { jobId: string } }>(
 
 app.post<{
   Params: { videoId: string };
-  Body: { title?: string; folder?: string; series?: string };
+  Body: { title?: string; share?: string; subfolder?: string };
 }>('/v1/youtube/videos/:videoId/video/download', async (request, reply) => {
   const videoId = request.params.videoId;
   if (!isValidYoutubeVideoId(videoId)) {
     return reply.code(400).send({ error: 'invalid_video_id' });
   }
-  const folderId = parseMediaFolderId(request.body?.folder);
-  if (!folderId) {
-    return reply.code(400).send({ error: 'invalid_download_folder' });
+  const share = request.body?.share?.trim();
+  if (!share) {
+    return reply.code(400).send({ error: 'invalid_share' });
   }
-  const folder = mediaFolderById(folderId);
+  const subfolderRaw = request.body?.subfolder?.trim();
+  const subfolder = subfolderRaw ? sanitizeNasFolderName(subfolderRaw) : undefined;
+  try {
+    await resolveSharePath(env.sharesRoot, share, subfolder);
+  } catch (err) {
+    const code = err instanceof Error ? err.message : 'invalid_share';
+    return reply.code(400).send({ error: code });
+  }
   const job = runner.enqueue({
     videoId,
     title: request.body?.title?.trim() || videoId,
-    folder: folderId,
-    folderLabel: folder.dirName,
-    seriesName: request.body?.series?.trim() || undefined,
+    shareName: share,
+    subfolder,
   });
   return reply.code(202).send(job);
 });
 
 async function start() {
   await mkdir(env.mediaRoot, { recursive: true });
+  await mkdir(env.sharesRoot, { recursive: true });
   if (existsSync(env.webDistDir)) {
     await app.register(fastifyStatic, {
       root: env.webDistDir,
@@ -85,7 +97,8 @@ async function start() {
     app.log.warn(`Web dist not found at ${env.webDistDir}; API only mode`);
   }
   await app.listen({ port: env.port, host: '0.0.0.0' });
-  app.log.info(`Media root: ${env.mediaRoot}`);
+  app.log.info(`Media root (tmp): ${env.mediaRoot}`);
+  app.log.info(`Shares root: ${env.sharesRoot}`);
 }
 
 start().catch((err) => {

@@ -18,6 +18,7 @@ WORKDIR /app/server
 ENV NODE_ENV=production
 ENV PORT=4010
 ENV MEDIA_ROOT=/data/media
+ENV SHARES_ROOT=/data/shares
 ENV YT_DLP_PATH=/usr/local/bin/yt-dlp
 ENV WEB_DIST_DIR=/app/web/dist
 COPY --from=build /repo/server/dist ./dist

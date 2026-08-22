@@ -1,4 +1,11 @@
 # 本地开发 / 飞牛手动 Compose（非 fpk）
+#
+# SHARES_ROOT 下的一层目录会作为「共享文件夹」列表。
+# 示例目录（首次可 mkdir）：
+#   ./data/shares/电影
+#   ./data/shares/电视剧
+#   ./data/shares/视频
+# 飞牛上可改为挂载真实卷，例如：/vol1/1000:/data/shares
 services:
   youtube-nas-dl:
     build:
@@ -13,6 +20,8 @@ services:
       NODE_ENV: production
       PORT: 4010
       MEDIA_ROOT: /data/media
+      SHARES_ROOT: /data/shares
       YT_DLP_PATH: /usr/local/bin/yt-dlp
     volumes:
       - ./data/media:/data/media
+      - ./data/shares:/data/shares

@@ -1,12 +1,12 @@
 # YouTube 下载到 NAS
 
-独立工具：粘贴 YouTube 链接，下载 MP4 到飞牛影视目录。  
+飞牛 **fpk 小应用**：粘贴 YouTube 链接，从用户共享文件夹（「影视」「下载」等）中选择保存位置，下载 MP4。  
 从 [file-service](https://github.com/xiaofeng19920506/file-service) 管理页下载功能复制而来，**不修改 file-service**。
 
 ## 功能
 
 - 粘贴 YouTube 链接或 11 位 video ID
-- 选择影视分类（电影 / 电视剧 / 短剧 / 视频 / 动漫 / 综艺）
+- 从已挂载的用户共享根下列出共享文件夹，选择保存位置（如影视、下载）
 - 可选剧名/片名（同剧多集填相同名称）
 - 最多 3 个任务并行，网页查看进度与重试
 - 第一版仅 MP4 视频
@@ -38,7 +38,8 @@ npm run dev:web      # :5173，代理 API
 docker compose up -d --build
 ```
 
-浏览器打开 `http://NAS_IP:4010`。视频默认写入 `./data/media/分类/剧名/`。
+浏览器打开 `http://NAS_IP:4010`。  
+本地用 `./data/shares` 模拟用户共享根；容器内 `SHARES_ROOT` / `MEDIA_ROOT` 为 `/data/shares`。
 
 ## 飞牛应用中心（fpk）
 
@@ -48,48 +49,46 @@ docker compose up -d --build
 |------|------|
 | [fpk/manifest](fpk/manifest) | 应用 ID、版本、显示名 |
 | [fpk/config/privilege](fpk/config/privilege) | 运行用户 `docker-youtube-nas-dl` |
-| [fpk/config/resource](fpk/config/resource) | docker-project + data-share |
+| [fpk/config/resource](fpk/config/resource) | docker-project + data-share（临时数据） |
 | [fpk/cmd/main](fpk/cmd/main) | 状态检测（启停由应用中心管理） |
 | [fpk/app/docker/docker-compose.yaml](fpk/app/docker/docker-compose.yaml) | 容器与卷 |
 | [fpk/app/ui/config](fpk/app/ui/config) | 桌面入口 :4010 |
 
-### 发布流程
+### 产品形态与保存位置
 
-1. **构建并推送镜像**（飞牛不会现场 build，需预构建镜像）：
-
-```bash
-docker build -f docker/Dockerfile -t xiaofeng19920506/youtube-nas-dl:1.0.0 .
-docker push xiaofeng19920506/youtube-nas-dl:1.0.0
-```
-
-2. **下载 [fnpack](https://developer.fnnas.com/docs/cli/fnpack/)** 放到项目根目录（Windows 可改名为 `fnpack.exe`）
-
-3. **打包 fpk**：
-
-```powershell
-$env:DOCKERHUB_REPO="xiaofeng19920506/youtube-nas-dl"
-$env:FPK_VERSION="1.0.0"
-$env:FPK_IMAGE_TAG="1.0.0"
-npm run fpk:build
-```
-
-产物在 `dist-fpk/youtube-nas-dl-1.0.0.fpk`。
-
-4. **飞牛安装**：应用中心 → 设置 → **手动安装** → 选择 `.fpk`
-
-5. 安装后桌面会出现「YouTube下载」，点击在浏览器打开。
-
-### 保存路径
-
-- fpk 默认：`/var/apps/youtube-nas-dl/shares/youtube-nas-dl/media/分类/剧名/`
-- 若要与系统「影视」目录打通，安装后在 Docker 项目里把卷改为：
+- 挂载飞牛**用户共享根**（常见路径 `/vol1/1000` → 容器 `/data/shares`）
+- 用户在网页里从「影视」「下载」等共享文件夹中选择保存位置
+- 应用 data-share `youtube-nas-dl` 挂到 `/data/app`，仅作临时数据；也可写在 `/data/shares/.youtube-nas-dl-tmp`
+- **若 `/vol1/1000` 不对**：安装后打开 Docker 项目，把卷左侧路径改成文件管理器里复制的真实用户共享根
 
 ```yaml
 volumes:
-  - /vol1/1000/影视:/data/media
+  - /真实用户共享根:/data/shares
 ```
 
-（路径以飞牛文件管理器里复制的为准）
+### GitHub Actions
+
+- `push` 到 `main`：自动 `npm run build`，并构建 Docker 镜像推送
+- 若配置了 `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` → 推 Docker Hub
+- 否则 → 推 **GHCR**：`ghcr.io/<owner>/youtube-nas-dl:latest`（及 `sha-*`）
+
+### fpk 打包步骤
+
+1. **确保镜像已推送**（飞牛不会现场 build；可用 GHCR 或 Docker Hub 上的 tag）
+2. **下载 [fnpack](https://developer.fnnas.com/docs/cli/fnpack/)** 放到项目根目录（Windows 可改名为 `fnpack.exe`）
+3. **打包**：
+
+```powershell
+$env:DOCKERHUB_REPO="ghcr.io/<owner>/youtube-nas-dl"   # 或 Docker Hub 仓库名
+$env:FPK_VERSION="1.0.0"
+$env:FPK_IMAGE_TAG="latest"   # 与已推送 tag 一致
+npm run fpk:build
+```
+
+产物：`dist-fpk/youtube-nas-dl-1.0.0.fpk`。
+
+4. **飞牛安装**：应用中心 → 设置 → **手动安装** → 选择 `.fpk`
+5. 桌面出现「YouTube下载」；核对共享根挂载后即可用
 
 ### 上架官方商店
 
@@ -100,7 +99,8 @@ volumes:
 | 变量 | 默认 | 说明 |
 |------|------|------|
 | `PORT` | `4010` | 服务端口 |
-| `MEDIA_ROOT` | `/data/media` | MP4 保存根目录 |
+| `SHARES_ROOT` | （同 MEDIA_ROOT） | 用户共享根，用于列出共享文件夹 |
+| `MEDIA_ROOT` | `/data/shares` | 下载目标根（与共享根一致） |
 | `YT_DLP_PATH` | `/usr/local/bin/yt-dlp` | yt-dlp 路径 |
 | `DOWNLOAD_TOKEN` | 空 | 可选 Bearer 鉴权 |
 | `YT_DLP_COOKIES_FROM_BROWSER` | 空 | YouTube 403 时在容器内不可用，需挂载 cookies 文件 |

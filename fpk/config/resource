@@ -11,9 +11,6 @@
     "shares": [
       {
         "name": "youtube-nas-dl"
-      },
-      {
-        "name": "youtube-nas-dl/media"
       }
     ]
   }

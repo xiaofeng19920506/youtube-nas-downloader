@@ -2,21 +2,13 @@ import { useEffect, useState } from 'react';
 import {
   friendlyError,
   listDownloadJobs,
+  listShares,
   retryDownloadJob,
   startVideoJob,
   type DownloadJob,
-  type MediaFolderId,
+  type ShareInfo,
 } from './api/downloads';
 import { normalizeYoutubeVideoId } from './lib/youtube-video-id';
-
-const MEDIA_FOLDERS: { id: MediaFolderId; label: string }[] = [
-  { id: 'movies', label: '电影' },
-  { id: 'tv', label: '电视剧' },
-  { id: 'shortdrama', label: '短剧' },
-  { id: 'videos', label: '视频' },
-  { id: 'anime', label: '动漫' },
-  { id: 'variety', label: '综艺' },
-];
 
 function jobStatusText(job: DownloadJob): string {
   if (job.status === 'queued') {
@@ -36,8 +28,10 @@ function jobStatusText(job: DownloadJob): string {
 
 export default function DownloadPage() {
   const [input, setInput] = useState('');
-  const [folder, setFolder] = useState<MediaFolderId>('shortdrama');
-  const [series, setSeries] = useState('');
+  const [shares, setShares] = useState<ShareInfo[]>([]);
+  const [sharesLoaded, setSharesLoaded] = useState(false);
+  const [share, setShare] = useState('');
+  const [subfolder, setSubfolder] = useState('');
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -48,6 +42,29 @@ export default function DownloadPage() {
   const doneJobs = jobs.filter((job) => job.status === 'done');
   const visibleJobs = jobTab === 'active' ? activeJobs : doneJobs;
   const activeCount = jobs.filter((job) => job.status === 'queued' || job.status === 'running').length;
+  const hasShares = shares.length > 0;
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const next = await listShares();
+        if (cancelled) return;
+        setShares(next);
+        setShare((prev) => {
+          if (prev && next.some((s) => s.name === prev)) return prev;
+          return next[0]?.name ?? '';
+        });
+      } catch {
+        if (!cancelled) setShares([]);
+      } finally {
+        if (!cancelled) setSharesLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,10 +95,14 @@ export default function DownloadPage() {
       setError(friendlyError('invalid_youtube_url'));
       return;
     }
+    if (!share) {
+      setError(friendlyError(hasShares ? 'invalid_share' : 'no_shares'));
+      return;
+    }
     setStarting(true);
     setError(null);
     try {
-      const job = await startVideoJob(videoId, videoId, folder, series);
+      const job = await startVideoJob(videoId, videoId, share, subfolder);
       setJobs((prev) => [job, ...prev.filter((row) => row.jobId !== job.jobId)]);
       setJobTab('active');
     } catch (err) {
@@ -108,7 +129,7 @@ export default function DownloadPage() {
   return (
     <section className="download-section">
       <p className="download-intro">
-        粘贴 YouTube 链接，选择影视目录与剧名/片名（可空）。系统会在该分类下用剧名新建文件夹，再把视频放进去；同一剧多集请填相同剧名。
+        粘贴 YouTube 链接，选择共享文件夹；可选填写子文件夹（剧名等）。视频将保存为 MP4。
       </p>
       <label className="download-field">
         <span>YouTube 链接或视频 ID</span>
@@ -118,41 +139,69 @@ export default function DownloadPage() {
           autoComplete="off"
           spellCheck={false}
           placeholder="https://www.youtube.com/watch?v=… 或 11 位 ID"
-          disabled={starting}
+          disabled={starting || !hasShares}
           onChange={(e) => setInput(e.target.value)}
         />
       </label>
       <label className="download-field">
-        <span>剧名 / 片名（可空）</span>
+        <span>保存到共享文件夹</span>
+        {sharesLoaded && !hasShares ? (
+          <p className="download-shares-empty">
+            未找到共享文件夹。请挂载 SHARES_ROOT（例如 /vol1/1000），并在其下创建若干共享目录。
+          </p>
+        ) : (
+          <select
+            value={share}
+            disabled={starting || !hasShares}
+            onChange={(e) => setShare(e.target.value)}
+          >
+            {!hasShares ? <option value="">加载中…</option> : null}
+            {shares.map((item) => (
+              <option key={item.name} value={item.name}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </label>
+      {hasShares ? (
+        <fieldset className="download-folders" disabled={starting}>
+          <legend>共享文件夹</legend>
+          <div className="download-folder-list">
+            {shares.map((item) => (
+              <label key={item.name} className="download-folder-option">
+                <input
+                  type="radio"
+                  name="download-share"
+                  value={item.name}
+                  checked={share === item.name}
+                  onChange={() => setShare(item.name)}
+                />
+                <span>{item.name}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
+      <label className="download-field">
+        <span>剧名 / 子文件夹（可空）</span>
         <input
           type="text"
-          value={series}
+          value={subfolder}
           autoComplete="off"
           spellCheck={false}
-          placeholder="例如：山河令。留空则按 YouTube 标题自动取剧名"
-          disabled={starting}
-          onChange={(e) => setSeries(e.target.value)}
+          placeholder="例如：山河令。留空则直接保存到所选共享文件夹"
+          disabled={starting || !hasShares}
+          onChange={(e) => setSubfolder(e.target.value)}
         />
       </label>
-      <fieldset className="download-folders" disabled={starting}>
-        <legend>保存到哪个影视文件夹</legend>
-        <div className="download-folder-list">
-          {MEDIA_FOLDERS.map((item) => (
-            <label key={item.id} className="download-folder-option">
-              <input
-                type="radio"
-                name="download-folder"
-                value={item.id}
-                checked={folder === item.id}
-                onChange={() => setFolder(item.id)}
-              />
-              <span>{item.label}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
       <div className="download-actions">
-        <button type="button" className="btn-primary" disabled={starting} onClick={() => void enqueue()}>
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={starting || !hasShares}
+          onClick={() => void enqueue()}
+        >
           {starting ? '正在提交…' : '保存视频到 NAS'}
         </button>
       </div>
@@ -190,7 +239,8 @@ export default function DownloadPage() {
                 <div className="download-job-head">
                   <strong>
                     保存视频到 NAS
-                    {job.folderLabel ? ` · ${job.folderLabel}` : ''}
+                    {job.shareName ? ` · ${job.shareName}` : ''}
+                    {job.subfolder ? ` / ${job.subfolder}` : ''}
                   </strong>
                   <span>{job.videoId}</span>
                 </div>

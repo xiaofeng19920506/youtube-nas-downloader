@@ -3,12 +3,8 @@ import { copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ServerEnv } from './env.js';
 import { tmpDownloadRoot } from './env.js';
-import {
-  mediaFolderById,
-  sanitizeNasFileStem,
-  seriesFolderFromTitle,
-  type MediaFolderId,
-} from './ytdlp/media-folders.js';
+import { resolveSharePath } from './shares.js';
+import { sanitizeNasFileStem, sanitizeNasFolderName } from './ytdlp/media-folders.js';
 import { classifyYtdlpError } from './ytdlp/ytdlp-common.js';
 import { extractYoutubeVideoMp4 } from './ytdlp/video-extract.js';
 
@@ -21,9 +17,8 @@ export type DownloadJob = {
   jobId: string;
   videoId: string;
   title?: string;
-  folder?: MediaFolderId;
-  folderLabel?: string;
-  seriesName?: string;
+  shareName?: string;
+  subfolder?: string;
   status: DownloadJobStatus;
   percent: number;
   stage: string;
@@ -41,6 +36,7 @@ function safeBasename(title: string | undefined, videoId: string): string {
 
 export function createJobRunner(env: ServerEnv) {
   const mediaRoot = env.mediaRoot;
+  const sharesRoot = env.sharesRoot;
   const jobs = new Map<string, DownloadJob>();
   const waitQueue: string[] = [];
   let running = 0;
@@ -70,9 +66,8 @@ export function createJobRunner(env: ServerEnv) {
   };
 
   const runMp4 = async (job: DownloadJob) => {
-    const folderId = job.folder;
-    if (!folderId) throw new Error('invalid_download_folder');
-    const folder = mediaFolderById(folderId);
+    const shareName = job.shareName?.trim();
+    if (!shareName) throw new Error('invalid_share');
     job.stage = 'starting';
     job.percent = 1;
     const tmpRoot = tmpDownloadRoot(mediaRoot);
@@ -92,13 +87,16 @@ export function createJobRunner(env: ServerEnv) {
       job.percent = 96;
       job.stage = 'saving';
       const youtubeTitle = extracted.title || job.title;
-      const seriesFolder = seriesFolderFromTitle(job.seriesName, youtubeTitle, job.videoId);
+      const subfolderRaw = job.subfolder?.trim();
+      const subfolder = subfolderRaw ? sanitizeNasFolderName(subfolderRaw) : undefined;
       const filename = `${safeBasename(youtubeTitle, job.videoId)}.${job.videoId}.mp4`;
-      const dir = join(mediaRoot, folder.dirName, seriesFolder);
+      const dir = await resolveSharePath(sharesRoot, shareName, subfolder);
       await mkdir(dir, { recursive: true });
       await copyFile(extracted.filePath, join(dir, filename));
       job.filename = filename;
-      job.nasPath = `${folder.nasLabel}/${seriesFolder}/${filename}`;
+      job.nasPath = subfolder
+        ? `${shareName}/${subfolder}/${filename}`
+        : `${shareName}/${filename}`;
       job.percent = 100;
       job.stage = 'done';
       job.status = 'done';
@@ -138,18 +136,16 @@ export function createJobRunner(env: ServerEnv) {
   const enqueue = (input: {
     videoId: string;
     title?: string;
-    folder: MediaFolderId;
-    folderLabel?: string;
-    seriesName?: string;
+    shareName: string;
+    subfolder?: string;
   }): DownloadJob => {
     prune();
     const job: DownloadJob = {
       jobId: randomUUID(),
       videoId: input.videoId,
       title: input.title,
-      folder: input.folder,
-      folderLabel: input.folderLabel,
-      seriesName: input.seriesName,
+      shareName: input.shareName,
+      subfolder: input.subfolder,
       status: 'queued',
       percent: 0,
       stage: 'queued',
