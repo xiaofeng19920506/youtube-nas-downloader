@@ -1,0 +1,18 @@
+# 本地开发 / 飞牛手动 Compose（非 fpk）
+services:
+  youtube-nas-dl:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: youtube-nas-dl:local
+    container_name: youtube-nas-dl
+    restart: unless-stopped
+    ports:
+      - "4010:4010"
+    environment:
+      NODE_ENV: production
+      PORT: 4010
+      MEDIA_ROOT: /data/media
+      YT_DLP_PATH: /usr/local/bin/yt-dlp
+    volumes:
+      - ./data/media:/data/media

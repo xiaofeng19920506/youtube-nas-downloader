@@ -1,0 +1,16 @@
+{
+  "name": "youtube-nas-downloader",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "build": "npm run build -w @youtube-nas/server && npm run build -w @youtube-nas/web",
+    "dev:server": "npm run dev -w @youtube-nas/server",
+    "dev:web": "npm run dev -w @youtube-nas/web",
+    "start": "npm run start -w @youtube-nas/server",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up -d",
+    "fpk:build": "node scripts/build-fpk.mjs"
+  }
+}

@@ -1,0 +1,14 @@
+services:
+  youtube-nas-dl:
+    image: {{DOCKERHUB_REPO}}:{{IMAGE_TAG}}
+    container_name: youtube-nas-dl
+    restart: unless-stopped
+    ports:
+      - "4010:4010"
+    volumes:
+      - "/var/apps/youtube-nas-dl/shares/youtube-nas-dl/media:/data/media"
+    environment:
+      - NODE_ENV=production
+      - PORT=4010
+      - MEDIA_ROOT=/data/media
+      - YT_DLP_PATH=/usr/local/bin/yt-dlp

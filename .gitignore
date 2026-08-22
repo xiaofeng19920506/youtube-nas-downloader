@@ -1,0 +1,10 @@
+node_modules/
+**/dist/
+dist-fpk/
+data/
+.env
+*.fpk
+fnpack*
+.DS_Store
+server/dist/
+web/dist/

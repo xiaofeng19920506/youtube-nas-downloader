@@ -1,0 +1,20 @@
+{
+  "docker-project": {
+    "projects": [
+      {
+        "name": "youtube-nas-dl",
+        "path": "docker"
+      }
+    ]
+  },
+  "data-share": {
+    "shares": [
+      {
+        "name": "youtube-nas-dl"
+      },
+      {
+        "name": "youtube-nas-dl/media"
+      }
+    ]
+  }
+}

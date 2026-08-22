@@ -1,0 +1,10 @@
+appname = youtube-nas-dl
+version = {{VERSION}}
+display_name = YouTube下载到NAS
+desc = 粘贴 YouTube 链接，下载 MP4 到飞牛影视目录。支持电影/电视剧/短剧等分类文件夹，最多 3 个任务并行，带网页进度与重试。
+arch = x86_64
+source = thirdparty
+maintainer = Aaron
+distributor = Aaron
+desktop_uidir = ui
+desktop_applaunchname = youtube-nas-dl.Application

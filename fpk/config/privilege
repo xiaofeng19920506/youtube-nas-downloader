@@ -1,0 +1,7 @@
+{
+  "defaults": {
+    "run-as": "package"
+  },
+  "username": "docker-youtube-nas-dl",
+  "groupname": "docker-youtube-nas-dl"
+}
