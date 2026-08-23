@@ -1,0 +1,3 @@
+#!/bin/bash
+# Called after Docker containers are created
+exit 0

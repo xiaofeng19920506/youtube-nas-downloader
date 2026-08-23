@@ -6,11 +6,13 @@ services:
     ports:
       - "4010:4010"
     volumes:
-      - "/var/apps/youtube-nas-dl/shares/youtube-nas-dl/media:/data/media"
+      # 飞牛用户共享根（影视/下载等）；路径不对请改成文件管理器真实路径
       - "/vol1/1000:/data/shares"
+      # 应用临时目录（data-share）
+      - "/var/apps/youtube-nas-dl/shares/youtube-nas-dl:/data/app"
     environment:
       - NODE_ENV=production
       - PORT=4010
-      - MEDIA_ROOT=/data/media
       - SHARES_ROOT=/data/shares
+      - MEDIA_ROOT=/data/app
       - YT_DLP_PATH=/usr/local/bin/yt-dlp
