@@ -79,20 +79,35 @@ volumes:
 3. **打包**：
 
 ```powershell
-$env:DOCKERHUB_REPO="ghcr.io/<owner>/youtube-nas-dl"   # 或 Docker Hub 仓库名
+$env:DOCKERHUB_REPO="ghcr.io/xiaofeng19920506/youtube-nas-dl"
 $env:FPK_VERSION="1.0.0"
-$env:FPK_IMAGE_TAG="latest"   # 与已推送 tag 一致
+$env:FPK_IMAGE_TAG="latest"
 npm run fpk:build
 ```
 
 产物：`dist-fpk/youtube-nas-dl-1.0.0.fpk`。
 
-4. **飞牛安装**：应用中心 → 设置 → **手动安装** → 选择 `.fpk`
+4. **飞牛安装**：应用中心 → 左下角 **手动安装** → 选择 `.fpk`  
+   也可直接下载已发布包：[v1.0.0 Release](https://github.com/xiaofeng19920506/youtube-nas-downloader/releases/tag/v1.0.0)
 5. 桌面出现「YouTube下载」；核对共享根挂载后即可用
 
-### 上架官方商店
+### 镜像公开（飞牛拉取必需）
 
-注册 [飞牛开发者平台](https://developer.fnnas.com/)，提交审核。本地 fpk 手动安装无需审核。
+CI 推送到 GHCR：`ghcr.io/xiaofeng19920506/youtube-nas-dl:latest`  
+
+请打开 [Packages](https://github.com/users/xiaofeng19920506/packages/container/package/youtube-nas-dl) → Package settings → **Change visibility → Public**，否则飞牛装 fpk 时拉不到镜像。
+
+### 上架官方应用商店
+
+官方商店**不能**仅靠 GitHub 自动上架，需飞牛审核：
+
+1. 打开 [飞牛应用开放平台](https://developer.fnnas.com/) 注册开发者（或加入飞牛开发者交流群）
+2. 提交应用信息：名称「YouTube下载到NAS」、仓库与 [Release fpk](https://github.com/xiaofeng19920506/youtube-nas-downloader/releases/tag/v1.0.0)
+3. 等待审核通过后才会出现在应用中心搜索里
+
+在正式上架前，用户可用 **手动安装 fpk** 使用。
+
+本地 fpk 手动安装无需审核。
 
 ## 环境变量
 
